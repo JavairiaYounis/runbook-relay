@@ -1,0 +1,36 @@
+services:
+  db:
+    image: postgres:17-alpine
+    environment:
+      POSTGRES_DB: ${POSTGRES_DB:?set POSTGRES_DB in .env}
+      POSTGRES_USER: ${POSTGRES_USER:?set POSTGRES_USER in .env}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?set POSTGRES_PASSWORD in .env}
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U $$POSTGRES_USER -d $$POSTGRES_DB"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+
+  app:
+    build: .
+    environment:
+      RUNBOOK_RELAY_ENVIRONMENT: ${RUNBOOK_RELAY_ENVIRONMENT:-development}
+      RUNBOOK_RELAY_API_KEY: ${RUNBOOK_RELAY_API_KEY:?set RUNBOOK_RELAY_API_KEY in .env}
+      RUNBOOK_RELAY_DATABASE_URL: ${RUNBOOK_RELAY_DATABASE_URL:?set RUNBOOK_RELAY_DATABASE_URL in .env}
+      RUNBOOK_RELAY_LOG_LEVEL: ${RUNBOOK_RELAY_LOG_LEVEL:-INFO}
+    command: ["sh", "-c", "uv run alembic upgrade head && uv run uvicorn runbook_relay.main:app --host 0.0.0.0 --port 8000"]
+    depends_on:
+      db:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://localhost:8000/health')"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    ports:
+      - "8000:8000"
+
+volumes:
+  postgres_data:

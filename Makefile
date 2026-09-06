@@ -1,10 +1,16 @@
-.PHONY: install run test lint format format-check typecheck check
+.PHONY: install run migrate migration-check test lint format format-check typecheck check
 
 install:
 	uv sync
 
 run:
 	uv run uvicorn runbook_relay.main:app --reload
+
+migrate:
+	uv run alembic upgrade head
+
+migration-check:
+	uv run alembic check
 
 test:
 	uv run pytest
