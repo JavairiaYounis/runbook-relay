@@ -10,6 +10,24 @@ permissions:
 jobs:
   quality:
     runs-on: ubuntu-latest
+    services:
+      postgres:
+        image: postgres:17-alpine
+        env:
+          POSTGRES_DB: runbook_relay_test
+          POSTGRES_USER: runbook_relay_test
+          POSTGRES_PASSWORD: test-only-password
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U runbook_relay_test -d runbook_relay_test"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 10
+    env:
+      RUNBOOK_RELAY_API_KEY: test-only-api-key
+      RUNBOOK_RELAY_DATABASE_URL: postgresql+asyncpg://runbook_relay_test:test-only-password@localhost:5432/runbook_relay_test
+      RUN_POSTGRES_TESTS: "1"
     steps:
       - uses: actions/checkout@v4
       - uses: astral-sh/setup-uv@v6
@@ -19,6 +37,12 @@ jobs:
         run: uv python install 3.12
       - name: Install dependencies
         run: uv sync --locked
+      - name: Verify migrations
+        run: |
+          uv run alembic upgrade head
+          uv run alembic downgrade base
+          uv run alembic upgrade head
+          uv run alembic check
       - name: Lint
         run: uv run ruff check .
       - name: Check formatting

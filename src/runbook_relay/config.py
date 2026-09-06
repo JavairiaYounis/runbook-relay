@@ -17,6 +17,7 @@ class Settings(BaseSettings):
     service_name: str = "Runbook Relay"
     environment: str = "development"
     api_key: SecretStr = Field(..., min_length=1)
+    database_url: SecretStr = Field(..., min_length=1)
     log_level: str = "INFO"
 
 

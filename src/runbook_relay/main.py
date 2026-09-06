@@ -1,4 +1,6 @@
 import secrets
+from collections.abc import AsyncIterator
+from contextlib import asynccontextmanager
 from typing import Annotated
 
 from fastapi import APIRouter, Depends, FastAPI, HTTPException, Request, status
@@ -8,6 +10,8 @@ from pydantic import BaseModel
 
 from runbook_relay import __version__
 from runbook_relay.config import Settings, get_settings
+from runbook_relay.database import create_engine, create_session_factory
+from runbook_relay.incidents.router import router as incidents_router
 from runbook_relay.logging import configure_logging
 
 api_key_header = APIKeyHeader(name="X-API-Key", auto_error=False)
@@ -45,14 +49,24 @@ async def require_api_key(
 def create_app(settings: Settings | None = None) -> FastAPI:
     app_settings = settings or get_settings()
     configure_logging(app_settings.log_level)
+    engine = create_engine(app_settings.database_url.get_secret_value())
+
+    @asynccontextmanager
+    async def lifespan(_: FastAPI) -> AsyncIterator[None]:
+        yield
+        await engine.dispose()
 
     application = FastAPI(
         title=app_settings.service_name,
         version=__version__,
         description="Evidence-based operational incident investigation.",
+        lifespan=lifespan,
     )
     if settings is not None:
         application.dependency_overrides[get_settings] = lambda: app_settings
+
+    application.state.database_engine = engine
+    application.state.session_factory = create_session_factory(engine)
 
     @application.exception_handler(HTTPException)
     async def http_exception_handler(_: Request, exc: HTTPException) -> JSONResponse:
@@ -80,6 +94,7 @@ def create_app(settings: Settings | None = None) -> FastAPI:
     async def protected_ping() -> dict[str, str]:
         return {"status": "ok"}
 
+    protected.include_router(incidents_router)
     application.include_router(protected)
     return application
 

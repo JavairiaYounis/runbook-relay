@@ -11,7 +11,11 @@ TEST_KEY = "test-secret-key"
 
 
 def make_client() -> TestClient:
-    settings = Settings(api_key=SecretStr(TEST_KEY), environment="test")
+    settings = Settings(
+        api_key=SecretStr(TEST_KEY),
+        database_url=SecretStr("sqlite+aiosqlite:///:memory:"),
+        environment="test",
+    )
     return TestClient(create_app(settings))
 
 
@@ -50,7 +54,10 @@ def test_valid_api_key_is_accepted() -> None:
 
 
 def test_secret_is_not_exposed_in_settings_representation() -> None:
-    settings = Settings(api_key=SecretStr(TEST_KEY))
+    settings = Settings(
+        api_key=SecretStr(TEST_KEY),
+        database_url=SecretStr("postgresql+asyncpg://user:secret@example.invalid/database"),
+    )
 
     assert TEST_KEY not in repr(settings)
     assert TEST_KEY not in str(settings)
